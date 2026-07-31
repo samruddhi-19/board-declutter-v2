@@ -82,7 +82,7 @@ window.TrelloPowerUp.initialize({
 
   // 4. POWER-UP MENU SETTINGS (Kept as a fallback)
   'show-settings': function(t, options) {
-    return t.popup({ title: 'Stale Card Automations', url: './settings.html', height: 260 }); 
+    return t.popup({ title: 'Board Declutter', url: './declutter-menu.html', height: 180 });
   },
 
   // 5. TOP BOARD BUTTONS (UPDATED!)
@@ -94,7 +94,7 @@ window.TrelloPowerUp.initialize({
         icon: { dark: SAFE_ICON, light: SAFE_ICON },
         text: '⚙️ Declutter Settings',
         callback: function(t) {
-          return t.popup({ title: 'Stale Card Automations', url: './settings.html', height: 260 });
+          return t.popup({ title: 'Board Declutter', url: './declutter-menu.html', height: 180 });
         }
       }];
 

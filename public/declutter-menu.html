@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link rel="stylesheet" href="https://p.trellocdn.com/power-up.css">
+  <script src="https://p.trellocdn.com/power-up.min.js"></script>
+  <style>
+    body {
+      padding: 10px;
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    .menu-item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      box-sizing: border-box;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      border: 1px solid #dfe1e6;
+      border-radius: 10px;
+      background: transparent;
+      cursor: pointer;
+      transition: background-color 0.15s ease, border-color 0.15s ease;
+    }
+    .menu-item:last-child { margin-bottom: 0; }
+    .menu-item:hover { background-color: rgba(9, 30, 66, 0.06); }
+
+    .menu-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: #172b4d;
+      margin-bottom: 3px;
+    }
+    .menu-desc {
+      font-size: 12px;
+      line-height: 1.35;
+      color: #6b778c;
+    }
+
+    .soon {
+      display: none;
+      margin-top: 8px;
+      font-size: 12px;
+      color: #6b778c;
+      text-align: center;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      body { color: #b6c2cf; background-color: #1d2125; }
+      .menu-item { border-color: #38414a; }
+      .menu-item:hover { background-color: rgba(255, 255, 255, 0.06); }
+      .menu-title { color: #b6c2cf; }
+      .menu-desc, .soon { color: #9fadbc; }
+    }
+  </style>
+</head>
+<body>
+  <button class="menu-item" id="settingsBtn">
+    <div class="menu-title">Declutter Setting</div>
+    <div class="menu-desc">You can change setting of declutter</div>
+  </button>
+
+  <button class="menu-item" id="previewBtn">
+    <div class="menu-title">Declutter Preview</div>
+    <div class="menu-desc">You can see and undo the already decluttered items</div>
+  </button>
+
+  <div class="soon" id="soonMsg">Coming soon</div>
+
+  <script>
+    var t = window.TrelloPowerUp.iframe();
+
+    document.getElementById('settingsBtn').addEventListener('click', function() {
+      return t.popup({
+        title: 'Stale Card Automations',
+        url: './settings.html',
+        height: 260
+      });
+    });
+
+    // Preview screen is not built yet — placeholder only.
+    document.getElementById('previewBtn').addEventListener('click', function() {
+      document.getElementById('soonMsg').style.display = 'block';
+      t.sizeTo('body');
+    });
+
+    t.render(function() {
+      t.sizeTo('body');
+    });
+  </script>
+</body>
+</html>
