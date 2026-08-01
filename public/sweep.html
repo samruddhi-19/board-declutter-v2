@@ -43,12 +43,16 @@
         boardLists = lists;
         const threshold = settings.sweepThreshold || 30;
         // Check if setting exists, default to true if it doesn't
-        const ignoreStarter = settings.ignoreStarter !== false; 
+        const ignoreStarter = settings.ignoreStarter !== false;
+        const protectedIds = settings.protectedCards || [];
         const now = new Date();
 
         foundStaleCards = cards.filter(card => {
           const list = lists.find(l => l.id === card.idList);
-          
+
+          // 0. Skip cards the user protected in Declutter Preview
+          if (protectedIds.includes(card.id)) return false;
+
           // 1. Skip if already in the Stale Cards list
           if (list && list.name.toLowerCase() === 'stale cards') return false;
 

@@ -38,20 +38,12 @@
       color: #6b778c;
     }
 
-    .soon {
-      display: none;
-      margin-top: 8px;
-      font-size: 12px;
-      color: #6b778c;
-      text-align: center;
-    }
-
     @media (prefers-color-scheme: dark) {
       body { color: #b6c2cf; background-color: #1d2125; }
       .menu-item { border-color: #38414a; }
       .menu-item:hover { background-color: rgba(255, 255, 255, 0.06); }
       .menu-title { color: #b6c2cf; }
-      .menu-desc, .soon { color: #9fadbc; }
+      .menu-desc { color: #9fadbc; }
     }
   </style>
 </head>
@@ -66,8 +58,6 @@
     <div class="menu-desc">You can see and undo the already decluttered items</div>
   </button>
 
-  <div class="soon" id="soonMsg">Coming soon</div>
-
   <script>
     var t = window.TrelloPowerUp.iframe();
 
@@ -79,10 +69,13 @@
       });
     });
 
-    // Preview screen is not built yet — placeholder only.
     document.getElementById('previewBtn').addEventListener('click', function() {
-      document.getElementById('soonMsg').style.display = 'block';
-      t.sizeTo('body');
+      return t.modal({
+        title: 'Declutter Preview',
+        url: './preview.html',
+        fullscreen: false,
+        height: 560
+      });
     });
 
     t.render(function() {

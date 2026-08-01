@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="https://p.trellocdn.com/power-up.css">
+  <script src="https://p.trellocdn.com/power-up.min.js"></script>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --panel: #f4f5f7;
+      --panel-border: #dfe1e6;
+      --text: #172b4d;
+      --text-dim: #6b778c;
+      --accent: #c26c0b;
+      --accent-border: #e2b579;
+      --accent-bg: #fdf4e7;
+      --green: #22a06b;
+      --danger: #c9372c;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0e1520;
+        --panel: #161f2b;
+        --panel-border: #26313f;
+        --text: #dfe6ee;
+        --text-dim: #8496a8;
+        --accent: #e2a03f;
+        --accent-border: #6d5124;
+        --accent-bg: #1c2432;
+        --green: #2ecc71;
+        --danger: #f87168;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overflow: hidden;
+    }
+
+    /* ---------- Tabs ---------- */
+    .tabs {
+      display: flex;
+      gap: 10px;
+      padding: 14px 16px;
+      flex: 0 0 auto;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 14px 10px;
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+    }
+
+    .tab:hover { border-color: var(--text-dim); }
+
+    .tab.active {
+      color: var(--accent);
+      border-color: var(--accent-border);
+      background: var(--accent-bg);
+    }
+
+    /* ---------- Action bar ---------- */
+    .action-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-top: 1px solid var(--panel-border);
+      border-bottom: 1px solid var(--panel-border);
+      flex: 0 0 auto;
+    }
+
+    .select-all {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .select-all-title { font-size: 14px; font-weight: 600; line-height: 1.2; }
+    .select-all-sub { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+    .action-btn {
+      padding: 12px 22px;
+      border: 1px solid var(--green);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: .04em;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background-color .15s ease, opacity .15s ease;
+    }
+
+    .action-btn:hover:not(:disabled) { background: rgba(46, 204, 113, .12); }
+    .action-btn:disabled { opacity: .45; cursor: not-allowed; }
+    .action-btn.danger { border-color: var(--danger); }
+    .action-btn.danger:hover:not(:disabled) { background: rgba(248, 113, 104, .12); }
+
+    /* ---------- Scrollable list ---------- */
+    .list {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      padding: 14px 16px 16px;
+    }
+
+    .card-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 16px;
+      margin-bottom: 12px;
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      background: var(--panel);
+      cursor: pointer;
+    }
+
+    .card-row:last-child { margin-bottom: 0; }
+    .card-row:hover { border-color: var(--text-dim); }
+
+    .card-name {
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 1.3;
+      word-break: break-word;
+    }
+
+    .card-meta {
+      margin-top: 8px;
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+
+    .card-meta strong { color: var(--text); font-weight: 600; }
+    .card-meta .age { color: var(--accent); margin-left: 10px; }
+
+    /* ---------- Checkbox ---------- */
+    input[type="checkbox"] {
+      appearance: none;
+      -webkit-appearance: none;
+      flex: 0 0 auto;
+      width: 20px;
+      height: 20px;
+      margin: 0;
+      border: 1px solid var(--panel-border);
+      border-radius: 4px;
+      background: var(--bg);
+      cursor: pointer;
+      position: relative;
+    }
+
+    input[type="checkbox"]:checked {
+      background: var(--green);
+      border-color: var(--green);
+    }
+
+    input[type="checkbox"]:checked::after {
+      content: '';
+      position: absolute;
+      left: 6px;
+      top: 2px;
+      width: 5px;
+      height: 10px;
+      border: solid #ffffff;
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+
+    input[type="checkbox"]:indeterminate {
+      background: var(--green);
+      border-color: var(--green);
+    }
+
+    input[type="checkbox"]:indeterminate::after {
+      content: '';
+      position: absolute;
+      left: 4px;
+      top: 8px;
+      width: 10px;
+      height: 2px;
+      background: #ffffff;
+    }
+
+    .row-check { margin-top: 2px; }
+
+    /* ---------- States ---------- */
+    .state {
+      padding: 48px 20px;
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .status {
+      flex: 0 0 auto;
+      padding: 10px 16px;
+      font-size: 12px;
+      text-align: center;
+      color: var(--text-dim);
+      border-top: 1px solid var(--panel-border);
+      display: none;
+    }
+
+    .status.show { display: block; }
+    .status.error { color: var(--danger); }
+    .status.ok { color: var(--green); }
+  </style>
+</head>
+<body>
+  <div class="tabs">
+    <button class="tab active" data-tab="upcoming">Upcoming Declutter Tasks</button>
+    <button class="tab" data-tab="past">Past decluttered Tasks</button>
+    <button class="tab" data-tab="protected">Protected Tasks</button>
+  </div>
+
+  <div class="action-bar">
+    <label class="select-all">
+      <input type="checkbox" id="selectAll" />
+      <span>
+        <div class="select-all-title">Select All</div>
+        <div class="select-all-sub" id="selectAllSub">Select the items to protect</div>
+      </span>
+    </label>
+    <button class="action-btn" id="actionBtn" disabled>PROTECT</button>
+  </div>
+
+  <div class="list" id="list">
+    <div class="state">Loading board…</div>
+  </div>
+
+  <div class="status" id="status"></div>
+
+  <script>
+    const API_KEY = '8ff35f5f772805ddb9058e7b406afd00';
+
+    var t = window.TrelloPowerUp.iframe({
+      appKey: API_KEY,
+      appName: 'Board Declutter'
+    });
+
+    const STALE_LIST = 'stale cards';
+    const STARTER_LIST = 'trello starter guide';
+
+    const TABS = {
+      upcoming: {
+        action: 'PROTECT',
+        hint: 'Select the items to protect',
+        empty: 'Nothing is due for decluttering.<br>Cards older than your threshold will show up here.',
+        danger: false
+      },
+      past: {
+        action: 'RESTORE',
+        hint: 'Select the items to move back',
+        empty: 'No cards have been decluttered yet.',
+        danger: false
+      },
+      protected: {
+        action: 'UNPROTECT',
+        hint: 'Select the items to unprotect',
+        empty: 'No protected cards yet.<br>Protect a card from the Upcoming tab to keep it on the board.',
+        danger: true
+      }
+    };
+
+    let currentTab = 'upcoming';
+    let lists = [];
+    let allCards = [];
+    let settings = {};
+    let protectedIds = [];
+    let rows = [];
+
+    const listEl = document.getElementById('list');
+    const statusEl = document.getElementById('status');
+    const actionBtn = document.getElementById('actionBtn');
+    const selectAll = document.getElementById('selectAll');
+    const selectAllSub = document.getElementById('selectAllSub');
+
+    function daysOld(card) {
+      const created = parseInt(card.id.substring(0, 8), 16) * 1000;
+      return Math.floor((Date.now() - created) / 86400000);
+    }
+
+    function listName(id) {
+      const l = lists.find(l => l.id === id);
+      return l ? l.name : 'Unknown list';
+    }
+
+    // The list a swept card came from, recorded as a label named after that list.
+    function originList(card) {
+      for (const label of (card.labels || [])) {
+        const match = lists.find(l => l.name === label.name);
+        if (match) return match;
+      }
+      return null;
+    }
+
+    function setStatus(msg, kind) {
+      statusEl.className = 'status show' + (kind ? ' ' + kind : '');
+      statusEl.innerHTML = msg;
+    }
+
+    function clearStatus() {
+      statusEl.className = 'status';
+      statusEl.innerHTML = '';
+    }
+
+    function cardsForTab(tab) {
+      const threshold = settings.sweepThreshold || 30;
+      const ignoreStarter = settings.ignoreStarter !== false;
+
+      if (tab === 'protected') {
+        return allCards.filter(c => protectedIds.includes(c.id));
+      }
+
+      if (tab === 'past') {
+        return allCards.filter(c => listName(c.idList).toLowerCase() === STALE_LIST);
+      }
+
+      // upcoming — mirrors the filter used by the sweeper
+      return allCards.filter(card => {
+        if (protectedIds.includes(card.id)) return false;
+        const name = listName(card.idList).toLowerCase();
+        if (name === STALE_LIST) return false;
+        if (ignoreStarter && name === STARTER_LIST) return false;
+        return daysOld(card) >= threshold;
+      });
+    }
+
+    function render() {
+      const cfg = TABS[currentTab];
+      const cards = cardsForTab(currentTab);
+
+      actionBtn.textContent = cfg.action;
+      actionBtn.classList.toggle('danger', cfg.danger);
+      selectAllSub.textContent = cfg.hint;
+
+      listEl.innerHTML = '';
+      rows = [];
+
+      if (!cards.length) {
+        listEl.innerHTML = '<div class="state">' + cfg.empty + '</div>';
+        selectAll.checked = false;
+        selectAll.indeterminate = false;
+        selectAll.disabled = true;
+        actionBtn.disabled = true;
+        return;
+      }
+
+      selectAll.disabled = false;
+
+      cards.forEach(function(card) {
+        const shownList = currentTab === 'past'
+          ? (originList(card) ? originList(card).name : listName(card.idList))
+          : listName(card.idList);
+
+        const row = document.createElement('label');
+        row.className = 'card-row';
+
+        const check = document.createElement('input');
+        check.type = 'checkbox';
+        check.className = 'row-check';
+        check.dataset.cardId = card.id;
+        check.addEventListener('change', syncSelection);
+
+        const body = document.createElement('div');
+        const name = document.createElement('div');
+        name.className = 'card-name';
+        name.textContent = card.name;
+
+        const meta = document.createElement('div');
+        meta.className = 'card-meta';
+        meta.innerHTML = 'List: <strong></strong><span class="age"></span>';
+        meta.querySelector('strong').textContent = shownList;
+        meta.querySelector('.age').textContent = daysOld(card) + ' days inactive';
+
+        body.appendChild(name);
+        body.appendChild(meta);
+        row.appendChild(check);
+        row.appendChild(body);
+        listEl.appendChild(row);
+
+        rows.push({ card: card, check: check });
+      });
+
+      syncSelection();
+    }
+
+    function selectedCards() {
+      return rows.filter(r => r.check.checked).map(r => r.card);
+    }
+
+    function syncSelection() {
+      const total = rows.length;
+      const picked = selectedCards().length;
+
+      selectAll.checked = picked > 0 && picked === total;
+      selectAll.indeterminate = picked > 0 && picked < total;
+      actionBtn.disabled = picked === 0;
+    }
+
+    selectAll.addEventListener('change', function() {
+      rows.forEach(r => { r.check.checked = selectAll.checked; });
+      syncSelection();
+    });
+
+    document.querySelectorAll('.tab').forEach(function(tab) {
+      tab.addEventListener('click', function() {
+        document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+        tab.classList.add('active');
+        currentTab = tab.dataset.tab;
+        clearStatus();
+        render();
+      });
+    });
+
+    async function saveProtected(ids) {
+      const data = await t.get('board', 'shared') || {};
+      await t.set('board', 'shared', Object.assign({}, data, { protectedCards: ids }));
+      protectedIds = ids;
+    }
+
+    async function authorize() {
+      const isAuth = await t.getRestApi().isAuthorized();
+      if (!isAuth) {
+        await t.getRestApi().authorize({ scope: 'read,write', expiration: '30days' });
+      }
+      return t.getRestApi().getToken();
+    }
+
+    // Move swept cards back to the list they came from and drop the origin label.
+    async function restoreCards(cards) {
+      const token = await authorize();
+      const authStr = 'key=' + API_KEY + '&token=' + token;
+      const fallback = lists.find(l => l.name.toLowerCase() !== STALE_LIST) || lists[0];
+
+      let done = 0;
+      for (const card of cards) {
+        const origin = originList(card);
+        const target = origin || fallback;
+        if (!target) continue;
+
+        setStatus('Restoring ' + (done + 1) + ' of ' + cards.length + '…');
+
+        await fetch('https://api.trello.com/1/cards/' + card.id + '?idList=' + target.id + '&' + authStr, { method: 'PUT' });
+
+        if (origin) {
+          const label = (card.labels || []).find(l => l.name === origin.name);
+          if (label) {
+            await fetch('https://api.trello.com/1/cards/' + card.id + '/idLabels/' + label.id + '?' + authStr, { method: 'DELETE' });
+          }
+        }
+        done++;
+      }
+      return done;
+    }
+
+    actionBtn.addEventListener('click', async function() {
+      const picked = selectedCards();
+      if (!picked.length) return;
+
+      const label = actionBtn.textContent;
+      actionBtn.disabled = true;
+      selectAll.disabled = true;
+
+      try {
+        if (currentTab === 'upcoming') {
+          actionBtn.textContent = 'PROTECTING…';
+          const ids = protectedIds.slice();
+          picked.forEach(c => { if (!ids.includes(c.id)) ids.push(c.id); });
+          await saveProtected(ids);
+          setStatus('Protected ' + picked.length + ' card' + (picked.length > 1 ? 's' : '') + '. They will be skipped by the sweeper.', 'ok');
+
+        } else if (currentTab === 'protected') {
+          actionBtn.textContent = 'UNPROTECTING…';
+          const pickedIds = picked.map(c => c.id);
+          await saveProtected(protectedIds.filter(id => !pickedIds.includes(id)));
+          setStatus('Unprotected ' + picked.length + ' card' + (picked.length > 1 ? 's' : '') + '.', 'ok');
+
+        } else {
+          const moved = await restoreCards(picked);
+          allCards = await t.cards('id', 'name', 'idList', 'labels');
+          setStatus('Restored ' + moved + ' card' + (moved > 1 ? 's' : '') + ' to their original lists.', 'ok');
+        }
+
+        actionBtn.textContent = label;
+        render();
+
+      } catch (e) {
+        console.error(e);
+        actionBtn.textContent = label;
+        actionBtn.disabled = false;
+        selectAll.disabled = false;
+        setStatus('Something went wrong. If this was a restore, make sure the Power-Up is authorized.', 'error');
+      }
+    });
+
+    t.render(function() {
+      Promise.all([
+        t.get('board', 'shared'),
+        t.lists('all'),
+        t.cards('id', 'name', 'idList', 'labels')
+      ]).then(function([boardData, boardLists, cards]) {
+        settings = boardData || {};
+        protectedIds = settings.protectedCards || [];
+        lists = boardLists;
+        allCards = cards;
+        render();
+      }).catch(function(e) {
+        console.error(e);
+        listEl.innerHTML = '<div class="state">Could not load the board. Try reopening this window.</div>';
+      });
+    });
+  </script>
+</body>
+</html>
