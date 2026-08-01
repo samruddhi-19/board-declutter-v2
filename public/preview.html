@@ -289,10 +289,10 @@
         danger: false
       },
       protected: {
-        action: 'UNPROTECT',
-        hint: 'Select the items to unprotect',
+        action: 'PROTECT',
+        hint: 'These stay on the board no matter how old they get',
         empty: 'No protected cards yet.<br>Protect a card from the Upcoming tab to keep it on the board.',
-        danger: true
+        danger: false
       }
     };
 
@@ -394,6 +394,8 @@
         check.type = 'checkbox';
         check.className = 'row-check';
         check.dataset.cardId = card.id;
+        // On the Protected tab the tick reflects the card's current protection.
+        check.checked = currentTab === 'protected';
         check.addEventListener('change', syncSelection);
 
         const body = document.createElement('div');
@@ -429,7 +431,8 @@
 
       selectAll.checked = picked > 0 && picked === total;
       selectAll.indeterminate = picked > 0 && picked < total;
-      actionBtn.disabled = picked === 0;
+      // The Protected tab saves whatever is ticked, so an empty tick list is a valid save.
+      actionBtn.disabled = picked === 0 && currentTab !== 'protected';
     }
 
     selectAll.addEventListener('change', function() {
@@ -490,7 +493,7 @@
 
     actionBtn.addEventListener('click', async function() {
       const picked = selectedCards();
-      if (!picked.length) return;
+      if (!picked.length && currentTab !== 'protected') return;
 
       const label = actionBtn.textContent;
       actionBtn.disabled = true;
@@ -505,10 +508,16 @@
           setStatus('Protected ' + picked.length + ' card' + (picked.length > 1 ? 's' : '') + '. They will be skipped by the sweeper.', 'ok');
 
         } else if (currentTab === 'protected') {
-          actionBtn.textContent = 'UNPROTECTING…';
-          const pickedIds = picked.map(c => c.id);
-          await saveProtected(protectedIds.filter(id => !pickedIds.includes(id)));
-          setStatus('Unprotected ' + picked.length + ' card' + (picked.length > 1 ? 's' : '') + '.', 'ok');
+          actionBtn.textContent = 'SAVING…';
+          // Ticked rows stay protected; anything unticked drops off the list.
+          // IDs not shown here (archived cards, other boards) are left untouched.
+          const shownIds = rows.map(r => r.card.id);
+          const untouched = protectedIds.filter(id => shownIds.indexOf(id) === -1);
+          const keep = picked.map(c => c.id);
+          await saveProtected(untouched.concat(keep));
+          setStatus(keep.length
+            ? keep.length + ' card' + (keep.length > 1 ? 's' : '') + ' will stay on the board regardless of age.'
+            : 'No cards are protected now.', 'ok');
 
         } else {
           const moved = await restoreCards(picked);
