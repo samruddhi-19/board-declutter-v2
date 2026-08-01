@@ -41,7 +41,7 @@
       ]).then(function([settings, lists, cards]) {
 
         boardLists = lists;
-        const threshold = settings.sweepThreshold || 30;
+        const threshold = Number.isFinite(settings.sweepThreshold) ? settings.sweepThreshold : 30;
         // Check if setting exists, default to true if it doesn't
         const ignoreStarter = settings.ignoreStarter !== false;
         const protectedIds = settings.protectedCards || [];

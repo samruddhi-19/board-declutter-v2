@@ -2,267 +2,350 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <link rel="stylesheet" href="https://p.trellocdn.com/power-up.css">
   <script src="https://p.trellocdn.com/power-up.min.js"></script>
   <style>
+    /* Trello's power-up.css is deliberately NOT loaded here — it restyles bare
+       form controls and fights this sheet. All controls below are self-contained. */
+
     :root {
       --bg: #ffffff;
-      --panel: #f4f5f7;
-      --panel-border: #dfe1e6;
+      --surface: #f7f8f9;
+      --line: #e4e6ea;
+      --line-soft: #eef0f2;
       --text: #172b4d;
       --text-dim: #6b778c;
-      --accent: #c26c0b;
-      --accent-border: #e2b579;
-      --accent-bg: #fdf4e7;
-      --green: #22a06b;
-      --danger: #c9372c;
+      --accent: #b8600c;
+      --accent-soft: #fbf1e6;
+      --accent-line: #f0d3ae;
+      --green: #1f9d63;
+      --green-hover: #18804f;
+      --focus: #4c9aff;
     }
 
     @media (prefers-color-scheme: dark) {
       :root {
-        --bg: #0e1520;
-        --panel: #161f2b;
-        --panel-border: #26313f;
+        --bg: #0f1620;
+        --surface: #161e29;
+        --line: #263141;
+        --line-soft: #1d2634;
         --text: #dfe6ee;
         --text-dim: #8496a8;
         --accent: #e2a03f;
-        --accent-border: #6d5124;
-        --accent-bg: #1c2432;
-        --green: #2ecc71;
-        --danger: #f87168;
+        --accent-soft: #1e2634;
+        --accent-line: #5d4622;
+        --green: #2ea86a;
+        --green-hover: #35c07c;
+        --focus: #579dff;
       }
     }
 
     * { box-sizing: border-box; }
 
-    /* Trello modals run wide — keep the content column readable. */
-    .tabs, .action-bar, .list, .status {
-      width: 100%;
-      max-width: 680px;
-      margin-left: auto;
-      margin-right: auto;
-    }
-
-    html, body {
-      height: 100%;
-      margin: 0;
-    }
+    html, body { height: 100%; margin: 0; }
 
     body {
       display: flex;
       flex-direction: column;
       background: var(--bg);
       color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      font-size: 13px;
+      line-height: 1.4;
       overflow: hidden;
+      -webkit-font-smoothing: antialiased;
     }
 
-    /* ---------- Tabs ---------- */
+    .shell {
+      width: 100%;
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    /* ---------- Tabs: one segmented control, not three buttons ---------- */
+    .tabbar { flex: 0 0 auto; padding-top: 16px; }
+
     .tabs {
       display: flex;
-      gap: 6px;
-      padding: 10px 12px 8px;
-      flex: 0 0 auto;
+      gap: 2px;
+      padding: 2px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--surface);
     }
 
     .tab {
       flex: 1;
-      padding: 7px 6px;
-      border: 1px solid var(--panel-border);
-      border-radius: 6px;
-      background: var(--panel);
-      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 6px 8px;
+      border: 0;
+      border-radius: 5px;
+      background: transparent;
+      color: var(--text-dim);
+      font: inherit;
       font-size: 11.5px;
       font-weight: 500;
-      line-height: 1.3;
+      white-space: nowrap;
       cursor: pointer;
-      transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+      transition: color .12s ease, background-color .12s ease;
     }
 
-    .tab:hover { border-color: var(--text-dim); }
+    .tab:hover { color: var(--text); }
 
     .tab.active {
+      background: var(--bg);
       color: var(--accent);
-      border-color: var(--accent-border);
-      background: var(--accent-bg);
+      font-weight: 600;
+      box-shadow: 0 1px 2px rgba(9, 30, 66, .12);
+    }
+
+    .tab-count {
+      min-width: 16px;
+      padding: 0 4px;
+      border-radius: 8px;
+      background: var(--line);
+      color: var(--text-dim);
+      font-size: 10px;
+      font-weight: 600;
+      line-height: 15px;
+    }
+
+    .tab.active .tab-count {
+      background: var(--accent-soft);
+      color: var(--accent);
     }
 
     /* ---------- Action bar ---------- */
-    .action-bar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 8px 12px;
-      border-top: 1px solid var(--panel-border);
-      border-bottom: 1px solid var(--panel-border);
+    .bar-wrap {
       flex: 0 0 auto;
+      border-bottom: 1px solid var(--line);
     }
 
-    .select-all {
+    .bar {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 12px;
+      padding: 10px 0 11px;
+    }
+
+    .selectall {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      flex: 1 1 auto;
+      min-width: 0;
       cursor: pointer;
       user-select: none;
     }
 
-    .select-all-title { font-size: 12px; font-weight: 600; line-height: 1.2; }
-    .select-all-sub { font-size: 10.5px; color: var(--text-dim); margin-top: 1px; }
-
-    .action-btn {
-      padding: 6px 14px;
-      border: 1px solid var(--green);
-      border-radius: 6px;
-      background: transparent;
-      color: var(--text);
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: .04em;
-      cursor: pointer;
-      white-space: nowrap;
-      transition: background-color .15s ease, opacity .15s ease;
-    }
-
-    .action-btn:hover:not(:disabled) { background: rgba(46, 204, 113, .12); }
-    .action-btn:disabled { opacity: .45; cursor: not-allowed; }
-    .action-btn.danger { border-color: var(--danger); }
-    .action-btn.danger:hover:not(:disabled) { background: rgba(248, 113, 104, .12); }
-
-    /* ---------- Scrollable list ---------- */
-    .list {
-      flex: 1 1 auto;
-      overflow-y: auto;
-      padding: 10px 12px 12px;
-    }
-
-    .card-row {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      padding: 9px 11px;
-      margin-bottom: 6px;
-      border: 1px solid var(--panel-border);
-      border-radius: 6px;
-      background: var(--panel);
-      cursor: pointer;
-    }
-
-    .card-row:last-child { margin-bottom: 0; }
-    .card-row:hover { border-color: var(--text-dim); }
-
-    .card-name {
-      font-size: 12.5px;
-      font-weight: 600;
-      line-height: 1.3;
-      word-break: break-word;
-    }
-
-    .card-meta {
-      margin-top: 3px;
+    .selectall-text { min-width: 0; }
+    .selectall-title { font-size: 12px; font-weight: 600; }
+    .selectall-sub {
       font-size: 11px;
       color: var(--text-dim);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
-    .card-meta strong { color: var(--text); font-weight: 600; }
-    .card-meta .age { color: var(--accent); margin-left: 8px; }
-
-    /* ---------- Checkbox ---------- */
-    input[type="checkbox"] {
-      appearance: none;
-      -webkit-appearance: none;
+    .btn {
       flex: 0 0 auto;
+      padding: 0 14px;
+      height: 30px;
+      border: 0;
+      border-radius: 5px;
+      background: var(--green);
+      color: #fff;
+      font: inherit;
+      font-size: 11.5px;
+      font-weight: 600;
+      letter-spacing: .03em;
+      cursor: pointer;
+      transition: background-color .12s ease;
+    }
+
+    .btn:hover:not(:disabled) { background: var(--green-hover); }
+
+    .btn:disabled {
+      background: transparent;
+      color: var(--text-dim);
+      box-shadow: inset 0 0 0 1px var(--line);
+      cursor: not-allowed;
+    }
+
+    /* ---------- Custom checkbox (immune to any host stylesheet) ---------- */
+    .cbx {
+      position: absolute;
+      opacity: 0;
+      width: 1px;
+      height: 1px;
+      margin: 0;
+      pointer-events: none;
+    }
+
+    .box {
+      flex: 0 0 auto;
+      position: relative;
+      display: block;
       width: 15px;
       height: 15px;
-      margin: 0;
-      border: 1px solid var(--panel-border);
-      border-radius: 3px;
-      background: var(--bg);
-      cursor: pointer;
-      position: relative;
+      border: 1.5px solid var(--text-dim);
+      border-radius: 4px;
+      background: transparent;
+      transition: background-color .12s ease, border-color .12s ease;
     }
 
-    input[type="checkbox"]:checked {
+    .cbx:checked + .box,
+    .cbx:indeterminate + .box {
       background: var(--green);
       border-color: var(--green);
     }
 
-    input[type="checkbox"]:checked::after {
+    .cbx:checked + .box::after {
       content: '';
       position: absolute;
-      left: 4.5px;
-      top: 1.5px;
+      left: 4px;
+      top: 1px;
       width: 4px;
       height: 8px;
-      border: solid #ffffff;
+      border: solid #fff;
       border-width: 0 2px 2px 0;
       transform: rotate(45deg);
     }
 
-    input[type="checkbox"]:indeterminate {
-      background: var(--green);
-      border-color: var(--green);
-    }
-
-    input[type="checkbox"]:indeterminate::after {
+    .cbx:indeterminate + .box::after {
       content: '';
       position: absolute;
-      left: 3px;
-      top: 6px;
+      left: 2.5px;
+      top: 5.5px;
       width: 7px;
       height: 2px;
-      background: #ffffff;
+      border-radius: 1px;
+      background: #fff;
     }
 
-    .row-check { margin-top: 1px; }
+    .cbx:focus-visible + .box {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+    }
+
+    /* ---------- Rows: flat list with dividers, not stacked cards ---------- */
+    .scroll {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+
+    .scroll::-webkit-scrollbar { width: 10px; }
+    .scroll::-webkit-scrollbar-thumb {
+      border: 3px solid transparent;
+      border-radius: 6px;
+      background: var(--line);
+      background-clip: content-box;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 9px 10px;
+      margin: 0 -10px;
+      border-radius: 5px;
+      border-bottom: 1px solid var(--line-soft);
+      cursor: pointer;
+    }
+
+    .row:hover { background: var(--surface); }
+    .row.sel { background: var(--accent-soft); }
+
+    .row-main { flex: 1 1 auto; min-width: 0; }
+
+    .row-title {
+      display: block;
+      font-size: 12.5px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .row-sub {
+      display: block;
+      margin-top: 1px;
+      font-size: 11px;
+      color: var(--text-dim);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .row-age {
+      flex: 0 0 auto;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--accent);
+      font-variant-numeric: tabular-nums;
+    }
 
     /* ---------- States ---------- */
     .state {
-      padding: 34px 20px;
+      padding: 56px 24px;
       text-align: center;
       color: var(--text-dim);
       font-size: 12px;
-      line-height: 1.5;
+      line-height: 1.6;
     }
 
     .status {
       flex: 0 0 auto;
-      padding: 7px 12px;
-      font-size: 11px;
-      text-align: center;
-      color: var(--text-dim);
-      border-top: 1px solid var(--panel-border);
       display: none;
+      border-top: 1px solid var(--line);
+      background: var(--surface);
     }
 
     .status.show { display: block; }
-    .status.error { color: var(--danger); }
-    .status.ok { color: var(--green); }
+    .status .shell { padding-top: 8px; padding-bottom: 8px; font-size: 11.5px; color: var(--text-dim); }
+    .status.error .shell { color: #c9372c; }
+    .status.ok .shell { color: var(--green); }
   </style>
 </head>
 <body>
-  <div class="tabs">
-    <button class="tab active" data-tab="upcoming">Upcoming Declutter Tasks</button>
-    <button class="tab" data-tab="past">Past decluttered Tasks</button>
-    <button class="tab" data-tab="protected">Protected Tasks</button>
+  <div class="tabbar">
+    <div class="shell">
+      <div class="tabs">
+        <button class="tab active" data-tab="upcoming">Upcoming Declutter<span class="tab-count" data-count="upcoming">0</span></button>
+        <button class="tab" data-tab="past">Past Decluttered<span class="tab-count" data-count="past">0</span></button>
+        <button class="tab" data-tab="protected">Protected<span class="tab-count" data-count="protected">0</span></button>
+      </div>
+    </div>
   </div>
 
-  <div class="action-bar">
-    <label class="select-all">
-      <input type="checkbox" id="selectAll" />
-      <span>
-        <div class="select-all-title">Select All</div>
-        <div class="select-all-sub" id="selectAllSub">Select the items to protect</div>
-      </span>
-    </label>
-    <button class="action-btn" id="actionBtn" disabled>PROTECT</button>
+  <div class="bar-wrap">
+    <div class="shell">
+      <div class="bar">
+        <label class="selectall">
+          <input type="checkbox" class="cbx" id="selectAll" />
+          <span class="box"></span>
+          <span class="selectall-text">
+            <span class="selectall-title">Select All</span>
+            <span class="selectall-sub" id="selectAllSub">Select the items to protect</span>
+          </span>
+        </label>
+        <button class="btn" id="actionBtn" disabled>PROTECT</button>
+      </div>
+    </div>
   </div>
 
-  <div class="list" id="list">
-    <div class="state">Loading board…</div>
+  <div class="scroll">
+    <div class="shell" id="list">
+      <div class="state">Loading board…</div>
+    </div>
   </div>
 
-  <div class="status" id="status"></div>
+  <div class="status" id="status"><div class="shell"></div></div>
 
   <script>
     const API_KEY = '8ff35f5f772805ddb9058e7b406afd00';
@@ -279,7 +362,7 @@
       upcoming: {
         action: 'PROTECT',
         hint: 'Select the items to protect',
-        empty: 'Nothing is due for decluttering.<br>Cards older than your threshold will show up here.',
+        empty: 'Nothing is due for decluttering.<br>Cards past your threshold will show up here.',
         danger: false
       },
       past: {
@@ -330,16 +413,16 @@
 
     function setStatus(msg, kind) {
       statusEl.className = 'status show' + (kind ? ' ' + kind : '');
-      statusEl.innerHTML = msg;
+      statusEl.firstElementChild.innerHTML = msg;
     }
 
     function clearStatus() {
       statusEl.className = 'status';
-      statusEl.innerHTML = '';
+      statusEl.firstElementChild.innerHTML = '';
     }
 
     function cardsForTab(tab) {
-      const threshold = settings.sweepThreshold || 30;
+      const threshold = Number.isFinite(settings.sweepThreshold) ? settings.sweepThreshold : 30;
       const ignoreStarter = settings.ignoreStarter !== false;
 
       if (tab === 'protected') {
@@ -360,13 +443,19 @@
       });
     }
 
+    function refreshCounts() {
+      Object.keys(TABS).forEach(function(tab) {
+        document.querySelector('[data-count="' + tab + '"]').textContent = cardsForTab(tab).length;
+      });
+    }
+
     function render() {
       const cfg = TABS[currentTab];
       const cards = cardsForTab(currentTab);
 
       actionBtn.textContent = cfg.action;
-      actionBtn.classList.toggle('danger', cfg.danger);
       selectAllSub.textContent = cfg.hint;
+      refreshCounts();
 
       listEl.innerHTML = '';
       rows = [];
@@ -388,34 +477,43 @@
           : listName(card.idList);
 
         const row = document.createElement('label');
-        row.className = 'card-row';
+        row.className = 'row';
 
         const check = document.createElement('input');
         check.type = 'checkbox';
-        check.className = 'row-check';
-        check.dataset.cardId = card.id;
+        check.className = 'cbx';
         // On the Protected tab the tick reflects the card's current protection.
         check.checked = currentTab === 'protected';
         check.addEventListener('change', syncSelection);
 
-        const body = document.createElement('div');
-        const name = document.createElement('div');
-        name.className = 'card-name';
-        name.textContent = card.name;
+        const box = document.createElement('span');
+        box.className = 'box';
 
-        const meta = document.createElement('div');
-        meta.className = 'card-meta';
-        meta.innerHTML = 'List: <strong></strong><span class="age"></span>';
-        meta.querySelector('strong').textContent = shownList;
-        meta.querySelector('.age').textContent = daysOld(card) + ' days inactive';
+        const main = document.createElement('span');
+        main.className = 'row-main';
 
-        body.appendChild(name);
-        body.appendChild(meta);
+        const title = document.createElement('span');
+        title.className = 'row-title';
+        title.textContent = card.name;
+        title.title = card.name;
+
+        const sub = document.createElement('span');
+        sub.className = 'row-sub';
+        sub.textContent = shownList;
+
+        const age = document.createElement('span');
+        age.className = 'row-age';
+        age.textContent = daysOld(card) + 'd inactive';
+
+        main.appendChild(title);
+        main.appendChild(sub);
         row.appendChild(check);
-        row.appendChild(body);
+        row.appendChild(box);
+        row.appendChild(main);
+        row.appendChild(age);
         listEl.appendChild(row);
 
-        rows.push({ card: card, check: check });
+        rows.push({ card: card, check: check, el: row });
       });
 
       syncSelection();
@@ -428,6 +526,8 @@
     function syncSelection() {
       const total = rows.length;
       const picked = selectedCards().length;
+
+      rows.forEach(r => r.el.classList.toggle('sel', r.check.checked));
 
       selectAll.checked = picked > 0 && picked === total;
       selectAll.indeterminate = picked > 0 && picked < total;

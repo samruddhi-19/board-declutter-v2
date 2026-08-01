@@ -44,7 +44,7 @@
           document.getElementById('enableToggle').checked = data.sweepEnabled || false;
           document.getElementById('ignoreStarterToggle').checked = data.ignoreStarter !== false; 
           document.getElementById('hideBadgesToggle').checked = data.hideBadges || false; 
-          document.getElementById('daysInput').value = data.sweepThreshold || 30;
+          document.getElementById('daysInput').value = Number.isFinite(data.sweepThreshold) ? data.sweepThreshold : 30;
         }
       });
     });
@@ -126,7 +126,9 @@
       const isEnabled = document.getElementById('enableToggle').checked;
       const ignoreStarter = document.getElementById('ignoreStarterToggle').checked;
       const hideBadges = document.getElementById('hideBadgesToggle').checked;
-      const days = parseInt(document.getElementById('daysInput').value, 10) || 30;
+      const parsedDays = parseInt(document.getElementById('daysInput').value, 10);
+      // Note: 0 is a valid threshold ("sweep everything"), so don't fall back on it.
+      const days = Number.isFinite(parsedDays) && parsedDays >= 0 ? parsedDays : 30;
 
       // Run the smart check to boot out any cards that no longer belong!
       await enforceNewSettings(isEnabled, ignoreStarter, days);
