@@ -19,6 +19,9 @@
       --accent-line: #f0d3ae;
       --green: #1f9d63;
       --green-hover: #18804f;
+      --red: #c9372c;
+      --red-hover: #ae2e24;
+      --red-text: #ffffff;
       --focus: #4c9aff;
     }
 
@@ -35,6 +38,9 @@
         --accent-line: #5d4622;
         --green: #2ea86a;
         --green-hover: #35c07c;
+        --red: #f87168;
+        --red-hover: #ff9c8f;
+        --red-text: #1d2125;
         --focus: #579dff;
       }
     }
@@ -168,6 +174,10 @@
     }
 
     .btn:hover:not(:disabled) { background: var(--green-hover); }
+
+    /* Destructive action — used by the Protected tab's un-protect. */
+    .btn.danger { background: var(--red); color: var(--red-text); }
+    .btn.danger:hover:not(:disabled) { background: var(--red-hover); }
 
     .btn:disabled {
       background: transparent;
@@ -361,21 +371,28 @@
     const TABS = {
       upcoming: {
         action: 'PROTECT',
+        busy: 'PROTECTING…',
         hint: 'Select the items to protect',
         empty: 'Nothing is due for decluttering.<br>Cards past your threshold will show up here.',
-        danger: false
+        danger: false,
+        showAge: true
       },
       past: {
-        action: 'RESTORE',
-        hint: 'Select the items to move back',
+        action: 'UNDO',
+        busy: 'RESTORING…',
+        hint: 'Select the items to undo',
         empty: 'No cards have been decluttered yet.',
-        danger: false
+        danger: false,
+        // A swept card's age says nothing about the sweep, so it is left out here.
+        showAge: false
       },
       protected: {
-        action: 'PROTECT',
-        hint: 'These stay on the board no matter how old they get',
+        action: 'UN-PROTECT',
+        busy: 'UN-PROTECTING…',
+        hint: 'Select the items to unprotect',
         empty: 'No protected cards yet.<br>Protect a card from the Upcoming tab to keep it on the board.',
-        danger: false
+        danger: true,
+        showAge: false
       }
     };
 
@@ -454,6 +471,7 @@
       const cards = cardsForTab(currentTab);
 
       actionBtn.textContent = cfg.action;
+      actionBtn.className = 'btn' + (cfg.danger ? ' danger' : '');
       selectAllSub.textContent = cfg.hint;
       refreshCounts();
 
@@ -482,8 +500,6 @@
         const check = document.createElement('input');
         check.type = 'checkbox';
         check.className = 'cbx';
-        // On the Protected tab the tick reflects the card's current protection.
-        check.checked = currentTab === 'protected';
         check.addEventListener('change', syncSelection);
 
         const box = document.createElement('span');
@@ -501,16 +517,19 @@
         sub.className = 'row-sub';
         sub.textContent = shownList;
 
-        const age = document.createElement('span');
-        age.className = 'row-age';
-        age.textContent = daysOld(card) + 'd inactive';
-
         main.appendChild(title);
         main.appendChild(sub);
         row.appendChild(check);
         row.appendChild(box);
         row.appendChild(main);
-        row.appendChild(age);
+
+        if (cfg.showAge) {
+          const age = document.createElement('span');
+          age.className = 'row-age';
+          age.textContent = daysOld(card) + 'd inactive';
+          row.appendChild(age);
+        }
+
         listEl.appendChild(row);
 
         rows.push({ card: card, check: check, el: row });
@@ -531,8 +550,7 @@
 
       selectAll.checked = picked > 0 && picked === total;
       selectAll.indeterminate = picked > 0 && picked < total;
-      // The Protected tab saves whatever is ticked, so an empty tick list is a valid save.
-      actionBtn.disabled = picked === 0 && currentTab !== 'protected';
+      actionBtn.disabled = picked === 0;
     }
 
     selectAll.addEventListener('change', function() {
@@ -578,12 +596,18 @@
 
         setStatus('Restoring ' + (done + 1) + ' of ' + cards.length + '…');
 
-        await fetch('https://api.trello.com/1/cards/' + card.id + '?idList=' + target.id + '&' + authStr, { method: 'PUT' });
+        const move = await fetch('https://api.trello.com/1/cards/' + card.id + '?idList=' + target.id + '&' + authStr, { method: 'PUT' });
+        if (!move.ok) throw new Error('Could not move "' + card.name + '" (' + move.status + ')');
+
+        // Mirror the move locally — t.cards() can still serve the pre-move board
+        // for a moment, which would leave the card sitting in this tab.
+        card.idList = target.id;
 
         if (origin) {
           const label = (card.labels || []).find(l => l.name === origin.name);
           if (label) {
             await fetch('https://api.trello.com/1/cards/' + card.id + '/idLabels/' + label.id + '?' + authStr, { method: 'DELETE' });
+            card.labels = card.labels.filter(l => l.id !== label.id);
           }
         }
         done++;
@@ -592,48 +616,49 @@
     }
 
     actionBtn.addEventListener('click', async function() {
+      const cfg = TABS[currentTab];
       const picked = selectedCards();
-      if (!picked.length && currentTab !== 'protected') return;
+      if (!picked.length) return;
 
-      const label = actionBtn.textContent;
+      const plural = picked.length > 1 ? 's' : '';
       actionBtn.disabled = true;
       selectAll.disabled = true;
+      actionBtn.textContent = cfg.busy;
 
       try {
         if (currentTab === 'upcoming') {
-          actionBtn.textContent = 'PROTECTING…';
           const ids = protectedIds.slice();
           picked.forEach(c => { if (!ids.includes(c.id)) ids.push(c.id); });
           await saveProtected(ids);
-          setStatus('Protected ' + picked.length + ' card' + (picked.length > 1 ? 's' : '') + '. They will be skipped by the sweeper.', 'ok');
+          setStatus('Protected ' + picked.length + ' card' + plural + '. They will be skipped by the sweeper.', 'ok');
 
         } else if (currentTab === 'protected') {
-          actionBtn.textContent = 'SAVING…';
-          // Ticked rows stay protected; anything unticked drops off the list.
-          // IDs not shown here (archived cards, other boards) are left untouched.
-          const shownIds = rows.map(r => r.card.id);
-          const untouched = protectedIds.filter(id => shownIds.indexOf(id) === -1);
-          const keep = picked.map(c => c.id);
-          await saveProtected(untouched.concat(keep));
-          setStatus(keep.length
-            ? keep.length + ' card' + (keep.length > 1 ? 's' : '') + ' will stay on the board regardless of age.'
-            : 'No cards are protected now.', 'ok');
+          // Ticked rows lose their protection; every other protected id is left
+          // alone, including ones not shown here (archived cards, other boards).
+          const drop = picked.map(c => c.id);
+          await saveProtected(protectedIds.filter(id => drop.indexOf(id) === -1));
+          setStatus('Un-protected ' + drop.length + ' card' + plural + '. ' +
+            (drop.length > 1 ? 'They are' : 'It is') + ' eligible for the next sweep again.', 'ok');
 
         } else {
           const moved = await restoreCards(picked);
-          allCards = await t.cards('id', 'name', 'idList', 'labels');
-          setStatus('Restored ' + moved + ' card' + (moved > 1 ? 's' : '') + ' to their original lists.', 'ok');
+          setStatus('Restored ' + moved + ' card' + (moved > 1 ? 's' : '') + ' to ' +
+            (moved > 1 ? 'their original lists' : 'its original list') + '.', 'ok');
         }
 
-        actionBtn.textContent = label;
+        actionBtn.textContent = cfg.action;
+        selectAll.checked = false;
+        selectAll.indeterminate = false;
         render();
 
       } catch (e) {
         console.error(e);
-        actionBtn.textContent = label;
+        actionBtn.textContent = cfg.action;
         actionBtn.disabled = false;
         selectAll.disabled = false;
-        setStatus('Something went wrong. If this was a restore, make sure the Power-Up is authorized.', 'error');
+        setStatus(e && e.message && currentTab === 'past'
+          ? e.message + ' Make sure the Power-Up is authorized.'
+          : 'Something went wrong. If this was an undo, make sure the Power-Up is authorized.', 'error');
       }
     });
 

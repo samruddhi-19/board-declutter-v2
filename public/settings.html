@@ -52,6 +52,16 @@
     // 🚀 SMART RECONCILIATION LOGIC
     async function enforceNewSettings(isEnabled, ignoreStarter, thresholdDays) {
       try {
+        // Work out whether there is anything to reconcile BEFORE asking to
+        // authorize — no Stale Cards list means no auth prompt on a first save.
+        const lists = await t.lists('all');
+        const staleList = lists.find(l => l.name.toLowerCase() === 'stale cards');
+        if (!staleList) return;
+
+        const allCards = await t.cards('id', 'idList', 'labels');
+        const cardsInStale = allCards.filter(c => c.idList === staleList.id);
+        if (!cardsInStale.length) return;
+
         let isAuth = await t.getRestApi().isAuthorized();
         if (!isAuth) {
           await t.getRestApi().authorize({ scope: 'read,write', expiration: '30days' });
@@ -60,14 +70,7 @@
         const token = await t.getRestApi().getToken();
         const authStr = `key=${API_KEY}&token=${token}`;
 
-        const lists = await t.lists('all');
-        const staleList = lists.find(l => l.name.toLowerCase() === 'stale cards');
-        if (!staleList) return; 
-
-        const fallbackListId = lists[0].id; 
-        const allCards = await t.cards('id', 'idList', 'labels');
-        const cardsInStale = allCards.filter(c => c.idList === staleList.id);
-
+        const fallbackListId = lists[0].id;
         const now = new Date();
 
         // Check every card currently in the Stale list against the NEW rules
@@ -130,22 +133,24 @@
       // Note: 0 is a valid threshold ("sweep everything"), so don't fall back on it.
       const days = Number.isFinite(parsedDays) && parsedDays >= 0 ? parsedDays : 30;
 
-      // Run the smart check to boot out any cards that no longer belong!
-      await enforceNewSettings(isEnabled, ignoreStarter, days);
-
+      // Persist FIRST. Reconciliation needs REST authorization, and settings must
+      // never be lost just because that prompt was dismissed or failed.
       const currentData = await t.get('board', 'shared') || {};
-      
+
       await t.set('board', 'shared', {
         ...currentData,
         'sweepEnabled': isEnabled,
         'ignoreStarter': ignoreStarter,
-        'hideBadges': hideBadges, 
+        'hideBadges': hideBadges,
         'sweepThreshold': days
       });
 
       btn.textContent = "✔ Saved!";
       btn.style.backgroundColor = "#61bd4f";
       btn.style.color = "white";
+
+      // Then boot out any cards that no longer belong in Stale Cards.
+      await enforceNewSettings(isEnabled, ignoreStarter, days);
 
       setTimeout(function() { try { t.closePopup(); } catch(e) {} }, 1000);
     });
