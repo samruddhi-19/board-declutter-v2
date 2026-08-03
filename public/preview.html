@@ -358,7 +358,10 @@
   <div class="status" id="status"><div class="shell"></div></div>
 
   <script>
-    const API_KEY = '8ff35f5f772805ddb9058e7b406afd00';
+    // Must stay identical to the key in sweep.html / settings.html — the token
+    // from getRestApi() is issued against this appKey, and pairing it with a
+    // different key makes every write fail with a 401.
+    const API_KEY = '13984ce4cf66fea26a4e36da6b01ffdc';
 
     var t = window.TrelloPowerUp.iframe({
       appKey: API_KEY,
