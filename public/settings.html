@@ -14,7 +14,7 @@
 </head>
 <body>
   <div class="row">
-    <label><input type="checkbox" id="enableToggle" /> Enable Auto-Sweep to Stale List</label>
+    <label><input type="checkbox" id="enableToggle" /> Enable Auto-Sweep to Archive</label>
   </div>
   <div class="row">
     <label><input type="checkbox" id="ignoreStarterToggle" checked /> Ignore "Trello Starter Guide" list</label>
@@ -52,17 +52,19 @@
     // 🚀 SMART RECONCILIATION LOGIC
     async function enforceNewSettings(isEnabled, ignoreStarter, thresholdDays) {
       try {
-        // Work out whether there is anything to reconcile BEFORE asking to
-        // authorize — no Stale Cards list means no auth prompt on a first save.
         const lists = await t.lists('all');
         const staleList = lists.find(l => l.name.toLowerCase() === 'stale cards');
-        if (!staleList) return;
 
+        // Cards swept before the switch to archiving still sit in the old list.
         const allCards = await t.cards('id', 'idList', 'labels');
-        const cardsInStale = allCards.filter(c => c.idList === staleList.id);
-        if (!cardsInStale.length) return;
+        const cardsInStale = staleList ? allCards.filter(c => c.idList === staleList.id) : [];
 
-        let isAuth = await t.getRestApi().isAuthorized();
+        // Decluttered cards are archived now, and the archive can only be read
+        // with a token. Don't force an authorize prompt on a board that has
+        // never been swept — if there is no token and no legacy Stale Cards
+        // work, there is nothing worth prompting for.
+        const isAuth = await t.getRestApi().isAuthorized();
+        if (!isAuth && !cardsInStale.length) return;
         if (!isAuth) {
           await t.getRestApi().authorize({ scope: 'read,write', expiration: '30days' });
         }
@@ -70,17 +72,26 @@
         const token = await t.getRestApi().getToken();
         const authStr = `key=${API_KEY}&token=${token}`;
 
+        let archivedCards = [];
+        try {
+          const res = await fetch(`https://api.trello.com/1/boards/${t.getContext().board}/cards/closed?fields=id,idList,labels,closed&${authStr}`);
+          if (res.ok) archivedCards = await res.json();
+        } catch (e) { console.error("Could not read archive:", e); }
+
+        const candidates = cardsInStale.concat(archivedCards);
+        if (!candidates.length) return;
+
         const fallbackListId = lists[0].id;
         const now = new Date();
 
-        // Check every card currently in the Stale list against the NEW rules
-        for (const card of cardsInStale) {
-          let targetListId = fallbackListId; 
+        // Check every decluttered card against the NEW rules
+        for (const card of candidates) {
+          let targetListId = null;
           let labelToRemoveId = null;
           let originalListName = "";
 
           // Figure out where it came from
-          for (const label of card.labels) {
+          for (const label of (card.labels || [])) {
             const matchedList = lists.find(l => l.name === label.name);
             if (matchedList) {
               targetListId = matchedList.id;
@@ -88,6 +99,13 @@
               originalListName = matchedList.name.toLowerCase();
               break;
             }
+          }
+
+          // No origin label on an archived card means the user archived it
+          // themselves. Never un-archive someone else's work.
+          if (!targetListId) {
+            if (card.closed) continue;
+            targetListId = fallbackListId;
           }
 
           // Calculate its actual age
@@ -109,9 +127,10 @@
             shouldRestore = true; 
           }
 
-          // Move the card back if it failed the new rules
+          // Bring the card back if it failed the new rules. closed=false is a
+          // no-op for legacy cards sitting in the Stale Cards list.
           if (shouldRestore) {
-            await fetch(`https://api.trello.com/1/cards/${card.id}?idList=${targetListId}&${authStr}`, { method: 'PUT' });
+            await fetch(`https://api.trello.com/1/cards/${card.id}?closed=false&idList=${targetListId}&${authStr}`, { method: 'PUT' });
             if (labelToRemoveId) {
               await fetch(`https://api.trello.com/1/cards/${card.id}/idLabels/${labelToRemoveId}?${authStr}`, { method: 'DELETE' });
             }

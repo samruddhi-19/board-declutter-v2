@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="https://p.trellocdn.com/power-up.min.js"></script>
+  <style>
+    /* power-up.css is deliberately not loaded — it restyles bare buttons. */
+
+    :root {
+      --text: #172b4d;
+      --text-dim: #6b778c;
+      --btn: #16394a;
+      --btn-hover: #0f2a37;
+      --btn-text: #ffffff;
+      --danger: #f87168;
+      --danger-hover: #ff9c8f;
+      --danger-text: #1d2125;
+      --error: #c9372c;
+      --focus: #4c9aff;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --text: #b6c2cf;
+        --text-dim: #8496a8;
+        --btn: #2d4f5e;
+        --btn-hover: #3a6274;
+        --error: #f87168;
+        --focus: #579dff;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 2px 0 6px;
+      background: transparent;
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      font-size: 13px;
+      line-height: 1.4;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .btn {
+      display: inline-block;
+      min-width: 104px;
+      height: 32px;
+      padding: 0 16px;
+      border: 0;
+      border-radius: 4px;
+      background: var(--btn);
+      color: var(--btn-text);
+      font: inherit;
+      font-size: 11.5px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      cursor: pointer;
+      transition: background-color .12s ease;
+    }
+
+    .btn:hover:not(:disabled) { background: var(--btn-hover); }
+
+    .btn.on { background: var(--danger); color: var(--danger-text); }
+    .btn.on:hover:not(:disabled) { background: var(--danger-hover); }
+
+    .btn:disabled { opacity: .65; cursor: default; }
+
+    .btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+    .hint {
+      margin-top: 7px;
+      font-size: 11.5px;
+      color: var(--text-dim);
+    }
+
+    .hint.error { color: var(--error); }
+
+    .age {
+      margin-top: 3px;
+      font-size: 11.5px;
+      color: var(--text-dim);
+    }
+  </style>
+</head>
+<body>
+  <button class="btn" id="toggle" disabled>…</button>
+  <div class="hint" id="hint"></div>
+  <div class="age" id="age"></div>
+
+  <script>
+    var t = window.TrelloPowerUp.iframe();
+
+    const toggleBtn = document.getElementById('toggle');
+    const hintEl = document.getElementById('hint');
+    const ageEl = document.getElementById('age');
+
+    let cardId = null;
+    let isProtected = false;
+
+    function paint() {
+      toggleBtn.textContent = isProtected ? 'UN-PROTECT' : 'PROTECT';
+      toggleBtn.classList.toggle('on', isProtected);
+      toggleBtn.disabled = false;
+      hintEl.className = 'hint';
+      hintEl.textContent = isProtected
+        ? 'This card is protected and will be skipped when the board is decluttered.'
+        : 'Click on protect to protect the card from decluttering.';
+      t.sizeTo('body');
+    }
+
+    function fail(msg) {
+      hintEl.className = 'hint error';
+      hintEl.textContent = msg;
+      t.sizeTo('body');
+    }
+
+    toggleBtn.addEventListener('click', async function() {
+      if (!cardId) return;
+
+      const wasProtected = isProtected;
+      toggleBtn.disabled = true;
+      toggleBtn.textContent = wasProtected ? 'UN-PROTECTING…' : 'PROTECTING…';
+
+      try {
+        // Re-read before writing so a change made in Declutter Preview (or on
+        // another card) isn't clobbered by this card's stale copy of the list.
+        const data = await t.get('board', 'shared') || {};
+        const ids = data.protectedCards || [];
+        const next = wasProtected
+          ? ids.filter(id => id !== cardId)
+          : (ids.indexOf(cardId) === -1 ? ids.concat([cardId]) : ids);
+
+        await t.set('board', 'shared', Object.assign({}, data, { protectedCards: next }));
+        isProtected = !wasProtected;
+        paint();
+
+      } catch (e) {
+        console.error(e);
+        isProtected = wasProtected;
+        paint();
+        fail('Could not save. Try again.');
+      }
+    });
+
+    t.render(function() {
+      Promise.all([
+        t.card('id', 'dateLastActivity'),
+        t.get('board', 'shared')
+      ]).then(function([card, boardData]) {
+        const data = boardData || {};
+        cardId = card.id;
+        isProtected = (data.protectedCards || []).indexOf(cardId) !== -1;
+
+        // Same switch that hides the age badges hides this read-out.
+        if (!data.hideBadges && card.dateLastActivity) {
+          const days = Math.floor((Date.now() - new Date(card.dateLastActivity)) / 86400000);
+          ageEl.textContent = 'Inactive for ' + days + ' day' + (days === 1 ? '' : 's') + '.';
+        }
+
+        paint();
+      }).catch(function(e) {
+        console.error(e);
+        fail('Could not load this card’s declutter status.');
+      });
+    });
+  </script>
+</body>
+</html>

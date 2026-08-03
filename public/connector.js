@@ -67,17 +67,18 @@ window.TrelloPowerUp.initialize({
     }).catch(e => { return []; });
   },
 
-  // 3. INSIDE CARD (The big health bar section)
+  // 3. INSIDE CARD (Protect toggle + health read-out)
+  // Trello allows only ONE card back section per Power-Up, so the protect
+  // control and the inactivity read-out share this one. It is not gated on
+  // hideBadges any more — that setting hides age badges, and protection has to
+  // stay reachable from the card either way. card-protect.html drops the
+  // inactivity line itself when hideBadges is on.
   'card-back-section': function(t, options) {
-    return t.get('board', 'shared', 'hideBadges').then(function(hideBadges) {
-      if (hideBadges) return null; 
-
-      return {
-        title: 'Card Health',
-        icon: SAFE_ICON,
-        content: { type: 'iframe', url: t.signUrl('./status.html'), height: 120 }
-      };
-    }).catch(e => { return null; });
+    return {
+      title: 'Board Declutter',
+      icon: SAFE_ICON,
+      content: { type: 'iframe', url: t.signUrl('./card-protect.html'), height: 108 }
+    };
   },
 
   // 4. POWER-UP MENU SETTINGS (Kept as a fallback)
@@ -102,9 +103,9 @@ window.TrelloPowerUp.initialize({
       if (isEnabled) {
         buttons.push({
           icon: { dark: SAFE_ICON, light: SAFE_ICON },
-          text: '🧹 Sweep Stale Cards',
+          text: '🧹 Archive Stale Cards',
           callback: function(t) {
-            return t.modal({ title: 'Sweeping Stale Cards...', url: './sweep.html', height: 300 });
+            return t.modal({ title: 'Archiving Stale Cards...', url: './sweep.html', height: 300 });
           }
         });
       }

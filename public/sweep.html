@@ -81,14 +81,14 @@
 
         t.getRestApi().isAuthorized().then(function(isAuth) {
           if (!isAuth) {
-            actionEl.innerHTML = `<button id="authBtn" class="mod-primary">Authorize Trello to Move Cards</button>`;
+            actionEl.innerHTML = `<button id="authBtn" class="mod-primary">Authorize Trello to Archive Cards</button>`;
             document.getElementById('authBtn').addEventListener('click', function() {
               t.getRestApi().authorize({ scope: 'read,write', expiration: '30days' })
-                .then(() => runSweep()) 
+                .then(() => runSweep())
                 .catch(e => console.error("Auth failed", e));
             });
           } else {
-            actionEl.innerHTML = `<button id="sweepBtn" class="mod-danger">Move ${foundStaleCards.length} Cards Now</button>`;
+            actionEl.innerHTML = `<button id="sweepBtn" class="mod-danger">Archive ${foundStaleCards.length} Cards Now</button>`;
             document.getElementById('sweepBtn').addEventListener('click', runSweep);
           }
         });
@@ -102,34 +102,26 @@
 
       try {
         const token = await t.getRestApi().getToken();
-        const boardId = t.getContext().board;
         const authStr = `key=${API_KEY}&token=${token}`;
-
-        statusEl.innerText = "Setting up Stale Cards list...";
-        let staleListId = null;
-        const staleList = boardLists.find(l => l.name.toLowerCase() === 'stale cards');
-
-        if (staleList) {
-          staleListId = staleList.id;
-        } else {
-          const listRes = await fetch(`https://api.trello.com/1/lists?name=Stale+Cards&idBoard=${boardId}&pos=bottom&${authStr}`, { method: 'POST' });
-          const newList = await listRes.json();
-          staleListId = newList.id;
-        }
 
         let count = 0;
         for (const card of foundStaleCards) {
           count++;
-          statusEl.innerText = `Moving card ${count} of ${foundStaleCards.length}...`;
+          statusEl.innerText = `Archiving card ${count} of ${foundStaleCards.length}...`;
 
           const originalList = boardLists.find(l => l.id === card.idList);
           const listName = originalList ? originalList.name : 'Old List';
 
+          // The origin label does double duty: it records which list the card
+          // came from, and it marks the card as archived BY THIS POWER-UP so
+          // Declutter Preview never offers to un-archive something the user
+          // archived by hand. Add it before archiving — the card is harder to
+          // reach afterwards.
           await fetch(`https://api.trello.com/1/cards/${card.id}/labels?color=null&name=${encodeURIComponent(listName)}&${authStr}`, { method: 'POST' });
-          await fetch(`https://api.trello.com/1/cards/${card.id}?idList=${staleListId}&${authStr}`, { method: 'PUT' });
+          await fetch(`https://api.trello.com/1/cards/${card.id}?closed=true&${authStr}`, { method: 'PUT' });
         }
 
-        statusEl.innerHTML = `✅ <strong>Successfully swept ${foundStaleCards.length} cards!</strong><br>Check your 'Stale Cards' list.`;
+        statusEl.innerHTML = `✅ <strong>Archived ${foundStaleCards.length} cards!</strong><br>Undo any of them from Declutter Preview → Past Decluttered.`;
         actionEl.innerHTML = `<button id="closeBtn" class="mod-primary">Done</button>`;
         document.getElementById('closeBtn').addEventListener('click', () => t.closeModal());
 

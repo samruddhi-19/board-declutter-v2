@@ -309,6 +309,22 @@
       line-height: 1.6;
     }
 
+    .linkbtn {
+      margin-top: 12px;
+      padding: 7px 14px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .linkbtn:hover:not(:disabled) { border-color: var(--text-dim); }
+    .linkbtn:disabled { color: var(--text-dim); cursor: default; }
+
     .status {
       flex: 0 0 auto;
       display: none;
@@ -384,7 +400,7 @@
         action: 'UNDO',
         busy: 'RESTORING…',
         hint: 'Select the items to undo',
-        empty: 'No cards have been decluttered yet.',
+        empty: 'No cards have been decluttered yet.<br>Archived cards come back to their original list from here.',
         danger: false,
         // A swept card's age says nothing about the sweep, so it is left out here.
         showAge: false
@@ -405,6 +421,9 @@
     let settings = {};
     let protectedIds = [];
     let rows = [];
+    // Archived cards are invisible to t.cards(), so they come from the REST API
+    // and need a token. null = not fetched yet (the Past tab asks to authorize).
+    let archivedCards = null;
 
     const listEl = document.getElementById('list');
     const statusEl = document.getElementById('status');
@@ -450,7 +469,13 @@
       }
 
       if (tab === 'past') {
-        return allCards.filter(c => listName(c.idList).toLowerCase() === STALE_LIST);
+        // Archived cards carrying an origin label are ones this Power-Up swept.
+        // Anything archived by hand has no such label and is left alone.
+        const archived = (archivedCards || []).filter(c => originList(c));
+        // Cards swept before the switch to archiving are still sitting in the
+        // old Stale Cards list; undo handles both, so list both.
+        const legacy = allCards.filter(c => listName(c.idList).toLowerCase() === STALE_LIST);
+        return archived.concat(legacy);
       }
 
       // upcoming — mirrors the filter used by the sweeper
@@ -465,8 +490,37 @@
 
     function refreshCounts() {
       Object.keys(TABS).forEach(function(tab) {
-        document.querySelector('[data-count="' + tab + '"]').textContent = cardsForTab(tab).length;
+        // Without a token the archive is unknown, so don't claim a total.
+        const unknown = tab === 'past' && archivedCards === null;
+        document.querySelector('[data-count="' + tab + '"]').textContent =
+          unknown ? '–' : cardsForTab(tab).length;
       });
+    }
+
+    async function authorize() {
+      const isAuth = await t.getRestApi().isAuthorized();
+      if (!isAuth) {
+        await t.getRestApi().authorize({ scope: 'read,write', expiration: '30days' });
+      }
+      return t.getRestApi().getToken();
+    }
+
+    // Pull the board's archived cards. `interactive` decides whether a missing
+    // token is worth an authorize prompt — opening the modal must never prompt.
+    async function loadArchived(interactive) {
+      if (archivedCards) return archivedCards;
+
+      if (!interactive && !(await t.getRestApi().isAuthorized())) return null;
+
+      const token = await authorize();
+      const boardId = t.getContext().board;
+      const res = await fetch('https://api.trello.com/1/boards/' + boardId +
+        '/cards/closed?fields=id,name,idList,labels,closed&key=' + API_KEY + '&token=' + token);
+
+      if (!res.ok) throw new Error('Could not read the archive (' + res.status + ').');
+
+      archivedCards = await res.json();
+      return archivedCards;
     }
 
     function render() {
@@ -480,6 +534,33 @@
 
       listEl.innerHTML = '';
       rows = [];
+
+      // The archive can only be read with a token, and we refuse to prompt for
+      // one just because the modal opened. Ask here instead, on the tab that
+      // actually needs it.
+      if (currentTab === 'past' && archivedCards === null) {
+        listEl.innerHTML = '<div class="state">Decluttered cards are archived, and Trello only ' +
+          'hands those over to an authorized Power-Up.<br>' +
+          '<button class="linkbtn" id="loadArchive">Show decluttered cards</button></div>';
+        selectAll.checked = false;
+        selectAll.indeterminate = false;
+        selectAll.disabled = true;
+        actionBtn.disabled = true;
+        document.getElementById('loadArchive').addEventListener('click', async function() {
+          this.disabled = true;
+          this.textContent = 'Loading…';
+          try {
+            await loadArchived(true);
+            clearStatus();
+            render();
+          } catch (e) {
+            console.error(e);
+            setStatus(e.message || 'Could not read the archive.', 'error');
+            render();
+          }
+        });
+        return;
+      }
 
       if (!cards.length) {
         listEl.innerHTML = '<div class="state">' + cfg.empty + '</div>';
@@ -577,15 +658,8 @@
       protectedIds = ids;
     }
 
-    async function authorize() {
-      const isAuth = await t.getRestApi().isAuthorized();
-      if (!isAuth) {
-        await t.getRestApi().authorize({ scope: 'read,write', expiration: '30days' });
-      }
-      return t.getRestApi().getToken();
-    }
-
-    // Move swept cards back to the list they came from and drop the origin label.
+    // Bring swept cards back: un-archive them, put them in the list they came
+    // from, and drop the origin label.
     async function restoreCards(cards) {
       const token = await authorize();
       const authStr = 'key=' + API_KEY + '&token=' + token;
@@ -599,12 +673,18 @@
 
         setStatus('Restoring ' + (done + 1) + ' of ' + cards.length + '…');
 
-        const move = await fetch('https://api.trello.com/1/cards/' + card.id + '?idList=' + target.id + '&' + authStr, { method: 'PUT' });
-        if (!move.ok) throw new Error('Could not move "' + card.name + '" (' + move.status + ')');
+        // closed=false is a no-op on cards that were swept into the old Stale
+        // Cards list rather than archived, and idList is set explicitly rather
+        // than trusting the archive to have preserved it — so one request
+        // handles both generations of swept card.
+        const undo = await fetch('https://api.trello.com/1/cards/' + card.id +
+          '?closed=false&idList=' + target.id + '&' + authStr, { method: 'PUT' });
+        if (!undo.ok) throw new Error('Could not restore "' + card.name + '" (' + undo.status + ')');
 
-        // Mirror the move locally — t.cards() can still serve the pre-move board
-        // for a moment, which would leave the card sitting in this tab.
+        // Mirror the change locally — the board data behind t.cards() can still
+        // serve the pre-undo state, which would leave the card stuck in this tab.
         card.idList = target.id;
+        card.closed = false;
 
         if (origin) {
           const label = (card.labels || []).find(l => l.name === origin.name);
@@ -613,6 +693,12 @@
             card.labels = card.labels.filter(l => l.id !== label.id);
           }
         }
+
+        // It is a live board card again: out of the archive, into the deck the
+        // other tabs are built from.
+        if (archivedCards) archivedCards = archivedCards.filter(c => c.id !== card.id);
+        if (!allCards.some(c => c.id === card.id)) allCards.push(card);
+
         done++;
       }
       return done;
@@ -676,6 +762,12 @@
         lists = boardLists;
         allCards = cards;
         render();
+
+        // Fill the archive in behind the scenes if we already hold a token, so
+        // the Past tab is populated before it is opened. Never prompts.
+        loadArchived(false).then(function(loaded) {
+          if (loaded) render();
+        }).catch(function(e) { console.error(e); });
       }).catch(function(e) {
         console.error(e);
         listEl.innerHTML = '<div class="state">Could not load the board. Try reopening this window.</div>';
