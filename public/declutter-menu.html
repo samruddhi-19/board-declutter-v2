@@ -73,6 +73,9 @@
       return t.modal({
         title: 'Declutter Preview',
         url: './preview.html',
+        // Trello draws the modal header itself, so the title colour can only be
+        // set here — no stylesheet inside preview.html can reach it.
+        accentColor: '#FFFFFF',
         fullscreen: false,
         height: 430
       });
