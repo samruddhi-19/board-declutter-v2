@@ -175,9 +175,27 @@
 
     .btn:hover:not(:disabled) { background: var(--green-hover); }
 
-    /* Destructive action — used by the Protected tab's un-protect. */
+    /* Destructive action — the Protected tab's un-protect and the archive. */
     .btn.danger { background: var(--red); color: var(--red-text); }
     .btn.danger:hover:not(:disabled) { background: var(--red-hover); }
+
+    /* Archiving needs a token. Until there is one the button is an invitation,
+       not the act itself, so it drops to an outline. */
+    .btn.outline {
+      background: transparent;
+      color: var(--red);
+      box-shadow: inset 0 0 0 1px currentColor;
+    }
+    .btn.outline:hover:not(:disabled) { background: var(--accent-soft); }
+
+    .btn.quiet {
+      background: transparent;
+      color: var(--text-dim);
+      box-shadow: inset 0 0 0 1px var(--line);
+    }
+    .btn.quiet:hover:not(:disabled) { color: var(--text); }
+
+    .btn.mini { height: 26px; padding: 0 11px; font-size: 11px; }
 
     .btn:disabled {
       background: transparent;
@@ -185,6 +203,8 @@
       box-shadow: inset 0 0 0 1px var(--line);
       cursor: not-allowed;
     }
+
+    .btn[hidden] { display: none; }
 
     /* ---------- Custom checkbox (immune to any host stylesheet) ---------- */
     .cbx {
@@ -271,6 +291,9 @@
     .row:hover { background: var(--surface); }
     .row.sel { background: var(--accent-soft); }
 
+    /* A row that has already left the board during a running archive. */
+    .row.done { opacity: .45; pointer-events: none; }
+
     .row-main { flex: 1 1 auto; min-width: 0; }
 
     .row-title {
@@ -333,9 +356,39 @@
     }
 
     .status.show { display: block; }
-    .status .shell { padding-top: 8px; padding-bottom: 8px; font-size: 11.5px; color: var(--text-dim); }
+
+    .status .shell {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding-top: 8px;
+      padding-bottom: 8px;
+      font-size: 11.5px;
+      color: var(--text-dim);
+    }
+
+    .status-msg { flex: 1 1 auto; min-width: 0; }
+    .status-msg strong { color: var(--text); font-weight: 600; }
+    .status-actions { flex: 0 0 auto; display: flex; gap: 8px; }
+
     .status.error .shell { color: #c9372c; }
     .status.ok .shell { color: var(--green); }
+    .status.ok .status-msg strong { color: inherit; }
+
+    .track {
+      height: 3px;
+      margin-top: 5px;
+      border-radius: 2px;
+      background: var(--line);
+      overflow: hidden;
+    }
+
+    .track > i {
+      display: block;
+      height: 100%;
+      background: var(--accent);
+      transition: width .18s ease;
+    }
   </style>
 </head>
 <body>
@@ -356,11 +409,12 @@
           <input type="checkbox" class="cbx" id="selectAll" />
           <span class="box"></span>
           <span class="selectall-text">
-            <span class="selectall-title">Select All</span>
+            <span class="selectall-title" id="selectAllTitle">Select All</span>
             <span class="selectall-sub" id="selectAllSub">Select the items to protect</span>
           </span>
         </label>
         <button class="btn" id="actionBtn" disabled>PROTECT</button>
+        <button class="btn danger" id="archiveBtn" hidden>ARCHIVE</button>
       </div>
     </div>
   </div>
@@ -371,10 +425,15 @@
     </div>
   </div>
 
-  <div class="status" id="status"><div class="shell"></div></div>
+  <div class="status" id="status">
+    <div class="shell">
+      <span class="status-msg" id="statusMsg"></span>
+      <span class="status-actions" id="statusActions"></span>
+    </div>
+  </div>
 
   <script>
-    // Must stay identical to the key in sweep.html / settings.html — the token
+    // Must stay identical to the key in settings.html — the token
     // from getRestApi() is issued against this appKey, and pairing it with a
     // different key makes every write fail with a 401.
     const API_KEY = '13984ce4cf66fea26a4e36da6b01ffdc';
@@ -392,6 +451,9 @@
         action: 'PROTECT',
         busy: 'PROTECTING…',
         hint: 'Select the items to protect',
+        // Shown instead of `hint` when archiving is switched on, because then the
+        // same ticks feed two opposite actions.
+        archiveHint: 'Protect what should stay, or archive the rest',
         empty: 'Nothing is due for decluttering.<br>Cards past your threshold will show up here.',
         danger: false,
         showAge: true
@@ -424,11 +486,20 @@
     // Archived cards are invisible to t.cards(), so they come from the REST API
     // and need a token. null = not fetched yet (the Past tab asks to authorize).
     let archivedCards = null;
+    // Mirrors getRestApi().isAuthorized(). render() needs the answer synchronously
+    // to label the archive button, so the async check is cached here.
+    let hasToken = false;
+    // True while an archive is running — freezes the bar and the tabs.
+    let busy = false;
 
     const listEl = document.getElementById('list');
     const statusEl = document.getElementById('status');
+    const statusMsg = document.getElementById('statusMsg');
+    const statusActions = document.getElementById('statusActions');
     const actionBtn = document.getElementById('actionBtn');
+    const archiveBtn = document.getElementById('archiveBtn');
     const selectAll = document.getElementById('selectAll');
+    const selectAllTitle = document.getElementById('selectAllTitle');
     const selectAllSub = document.getElementById('selectAllSub');
 
     function daysOld(card) {
@@ -452,12 +523,67 @@
 
     function setStatus(msg, kind) {
       statusEl.className = 'status show' + (kind ? ' ' + kind : '');
-      statusEl.firstElementChild.innerHTML = msg;
+      statusMsg.innerHTML = msg;
+      statusActions.innerHTML = '';
     }
 
     function clearStatus() {
       statusEl.className = 'status';
-      statusEl.firstElementChild.innerHTML = '';
+      statusMsg.innerHTML = '';
+      statusActions.innerHTML = '';
+    }
+
+    // The rules the Upcoming tab is filtering by, stated plainly. Shown only when
+    // the strip is otherwise idle, so it never buries a result or an error.
+    function showTabInfo() {
+      if (statusEl.classList.contains('show')) return;
+      if (currentTab !== 'upcoming') return;
+      const threshold = Number.isFinite(settings.sweepThreshold) ? settings.sweepThreshold : 30;
+      const parts = ['Threshold: ' + threshold + ' day' + (threshold === 1 ? '' : 's')];
+      if (settings.ignoreStarter !== false) parts.push('Trello Starter Guide is skipped');
+      setStatus(parts.join(' · '));
+    }
+
+    // Confirm in the strip rather than a second modal — the list being confirmed
+    // stays on screen, which is the whole point of confirming here.
+    function askConfirm(msg, label, onConfirm) {
+      statusEl.className = 'status show';
+      statusMsg.innerHTML = msg;
+      statusActions.innerHTML = '';
+
+      const no = document.createElement('button');
+      no.className = 'btn quiet mini';
+      no.textContent = 'CANCEL';
+
+      const yes = document.createElement('button');
+      yes.className = 'btn danger mini';
+      yes.textContent = label;
+
+      no.addEventListener('click', function() {
+        clearStatus();
+        selectAll.disabled = !rows.length;
+        syncSelection();
+        showTabInfo();
+      });
+
+      yes.addEventListener('click', function() {
+        statusActions.innerHTML = '';
+        onConfirm();
+      });
+
+      statusActions.appendChild(no);
+      statusActions.appendChild(yes);
+
+      actionBtn.disabled = true;
+      archiveBtn.disabled = true;
+      selectAll.disabled = true;
+    }
+
+    function setProgress(msg, fraction) {
+      statusEl.className = 'status show';
+      statusActions.innerHTML = '';
+      statusMsg.innerHTML = msg +
+        '<span class="track"><i style="width:' + Math.round(fraction * 100) + '%"></i></span>';
     }
 
     function cardsForTab(tab) {
@@ -513,6 +639,7 @@
       if (!interactive && !(await t.getRestApi().isAuthorized())) return null;
 
       const token = await authorize();
+      hasToken = true;
       const boardId = t.getContext().board;
       const res = await fetch('https://api.trello.com/1/boards/' + boardId +
         '/cards/closed?fields=id,name,idList,labels,closed&key=' + API_KEY + '&token=' + token);
@@ -523,13 +650,21 @@
       return archivedCards;
     }
 
+    // The archive lives on the Upcoming tab only, and only when the board has
+    // switched it on in Settings — the same flag that used to decide whether the
+    // board carried a second Power-Up button.
+    function canArchive() {
+      return currentTab === 'upcoming' && settings.sweepEnabled === true;
+    }
+
     function render() {
       const cfg = TABS[currentTab];
       const cards = cardsForTab(currentTab);
 
       actionBtn.textContent = cfg.action;
       actionBtn.className = 'btn' + (cfg.danger ? ' danger' : '');
-      selectAllSub.textContent = cfg.hint;
+      selectAllSub.textContent = canArchive() ? cfg.archiveHint : cfg.hint;
+      archiveBtn.hidden = !canArchive() || !cards.length;
       refreshCounts();
 
       listEl.innerHTML = '';
@@ -545,6 +680,7 @@
         selectAll.checked = false;
         selectAll.indeterminate = false;
         selectAll.disabled = true;
+        selectAllTitle.textContent = 'Select All';
         actionBtn.disabled = true;
         document.getElementById('loadArchive').addEventListener('click', async function() {
           this.disabled = true;
@@ -567,7 +703,9 @@
         selectAll.checked = false;
         selectAll.indeterminate = false;
         selectAll.disabled = true;
+        selectAllTitle.textContent = 'Select All';
         actionBtn.disabled = true;
+        showTabInfo();
         return;
       }
 
@@ -616,10 +754,11 @@
 
         listEl.appendChild(row);
 
-        rows.push({ card: card, check: check, el: row });
+        rows.push({ card: card, check: check, el: row, sub: sub });
       });
 
       syncSelection();
+      showTabInfo();
     }
 
     function selectedCards() {
@@ -634,7 +773,22 @@
 
       selectAll.checked = picked > 0 && picked === total;
       selectAll.indeterminate = picked > 0 && picked < total;
-      actionBtn.disabled = picked === 0;
+
+      selectAllTitle.textContent = picked ? picked + ' of ' + total + ' selected' : 'Select All';
+
+      actionBtn.textContent = TABS[currentTab].action + (picked ? ' ' + picked : '');
+      actionBtn.disabled = busy || picked === 0;
+
+      if (!archiveBtn.hidden) {
+        // Nothing ticked means the whole eligible list, which is what the old
+        // board button did. A ticked selection narrows it, and the count on the
+        // button is the promise that nothing else goes.
+        archiveBtn.className = 'btn ' + (hasToken ? 'danger' : 'outline');
+        archiveBtn.textContent = !hasToken
+          ? 'AUTHORIZE TO ARCHIVE'
+          : picked ? 'ARCHIVE ' + picked : 'ARCHIVE ALL ' + total;
+        archiveBtn.disabled = busy;
+      }
     }
 
     selectAll.addEventListener('change', function() {
@@ -644,6 +798,8 @@
 
     document.querySelectorAll('.tab').forEach(function(tab) {
       tab.addEventListener('click', function() {
+        // Leaving mid-archive would strand the progress strip on another tab.
+        if (busy) return;
         document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
         tab.classList.add('active');
         currentTab = tab.dataset.tab;
@@ -704,6 +860,105 @@
       return done;
     }
 
+    // Archive the given cards: tag each with the list it came from, then close
+    // it. The origin label does double duty — it records the way back, and it
+    // marks the card as archived BY THIS POWER-UP so the Past tab never offers
+    // to undo something the user archived by hand.
+    async function archiveCards(cards) {
+      const token = await authorize();
+      hasToken = true;
+      const authStr = 'key=' + API_KEY + '&token=' + token;
+
+      let done = 0;
+      for (const card of cards) {
+        setProgress('Archiving ' + (done + 1) + ' of ' + cards.length + '…', done / cards.length);
+
+        const origin = listName(card.idList);
+
+        // Label first: the card is harder to reach once it is closed.
+        await fetch('https://api.trello.com/1/cards/' + card.id + '/labels?color=null&name=' +
+          encodeURIComponent(origin) + '&' + authStr, { method: 'POST' });
+
+        const res = await fetch('https://api.trello.com/1/cards/' + card.id +
+          '?closed=true&' + authStr, { method: 'PUT' });
+        if (!res.ok) throw new Error('Could not archive "' + card.name + '" (' + res.status + ')');
+
+        // Mirror it locally — the board data behind t.cards() can still serve the
+        // pre-archive state, which would leave the card sitting in this tab.
+        card.closed = true;
+        allCards = allCards.filter(c => c.id !== card.id);
+
+        const row = rows.find(r => r.card.id === card.id);
+        if (row) {
+          row.el.classList.add('done');
+          row.sub.textContent = 'Archived';
+        }
+
+        done++;
+      }
+
+      // Re-read the archive rather than patching it: the labels just created come
+      // back with their real ids, which is what undo needs to strip them again.
+      archivedCards = null;
+      try {
+        await loadArchived(false);
+      } catch (e) {
+        console.error(e);
+      }
+
+      return done;
+    }
+
+    archiveBtn.addEventListener('click', async function() {
+      if (!hasToken) {
+        try {
+          await authorize();
+          hasToken = true;
+          clearStatus();
+          render();
+        } catch (e) {
+          console.error(e);
+          setStatus('Trello did not grant access, so nothing was archived.', 'error');
+        }
+        return;
+      }
+
+      const picked = selectedCards();
+      const targets = picked.length ? picked : rows.map(r => r.card);
+      if (!targets.length) return;
+
+      const plural = targets.length > 1 ? 's' : '';
+      askConfirm(
+        '<strong>Archive ' + targets.length + ' card' + plural + '?</strong> ' +
+        (targets.length > 1 ? 'They leave' : 'It leaves') +
+        ' the board and can be undone from Past Decluttered.',
+        'ARCHIVE',
+        async function() {
+          busy = true;
+          archiveBtn.textContent = 'ARCHIVING…';
+          archiveBtn.disabled = true;
+          actionBtn.disabled = true;
+          selectAll.disabled = true;
+
+          try {
+            const moved = await archiveCards(targets);
+            busy = false;
+            selectAll.checked = false;
+            selectAll.indeterminate = false;
+            clearStatus();
+            render();
+            setStatus('<strong>Archived ' + moved + ' card' + (moved > 1 ? 's' : '') + '.</strong> ' +
+              'Undo ' + (moved > 1 ? 'any of them' : 'it') + ' from Past Decluttered.', 'ok');
+          } catch (e) {
+            console.error(e);
+            busy = false;
+            render();
+            setStatus(e.message || 'Something went wrong while archiving.', 'error');
+          }
+        }
+      );
+    });
+
     actionBtn.addEventListener('click', async function() {
       const cfg = TABS[currentTab];
       const picked = selectedCards();
@@ -742,9 +997,8 @@
 
       } catch (e) {
         console.error(e);
-        actionBtn.textContent = cfg.action;
-        actionBtn.disabled = false;
         selectAll.disabled = false;
+        syncSelection();
         setStatus(e && e.message && currentTab === 'past'
           ? e.message + ' Make sure the Power-Up is authorized.'
           : 'Something went wrong. If this was an undo, make sure the Power-Up is authorized.', 'error');
@@ -762,6 +1016,13 @@
         lists = boardLists;
         allCards = cards;
         render();
+
+        // Whether we hold a token decides what the archive button says, so settle
+        // it up front. Checking never prompts.
+        t.getRestApi().isAuthorized().then(function(authorized) {
+          hasToken = authorized;
+          syncSelection();
+        }).catch(function(e) { console.error(e); });
 
         // Fill the archive in behind the scenes if we already hold a token, so
         // the Past tab is populated before it is opened. Never prompts.

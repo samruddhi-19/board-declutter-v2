@@ -86,31 +86,18 @@ window.TrelloPowerUp.initialize({
     return t.popup({ title: 'Board Declutter', url: './declutter-menu.html', height: 180 });
   },
 
-  // 5. TOP BOARD BUTTONS (UPDATED!)
+  // 5. TOP BOARD BUTTON
+  // One button, one menu. Archiving used to sit beside this as a second button
+  // wearing the same icon; it now lives in Declutter Preview, on the tab that
+  // already lists the cards it would archive. The sweepEnabled setting still
+  // switches the feature on and off — Preview reads it to show that button.
   'board-buttons': function(t, options) {
-    return t.get('board', 'shared', 'sweepEnabled', false).then(function(isEnabled) {
-      
-      // 1. ALWAYS show the Settings button at the top of the board
-      let buttons = [{
-        icon: { dark: SAFE_ICON, light: SAFE_ICON },
-        text: '⚙️ Declutter Settings',
-        callback: function(t) {
-          return t.popup({ title: 'Board Declutter', url: './declutter-menu.html', height: 180 });
-        }
-      }];
-
-      // 2. ONLY show the Sweep button if the user has enabled it in settings
-      if (isEnabled) {
-        buttons.push({
-          icon: { dark: SAFE_ICON, light: SAFE_ICON },
-          text: '🧹 Archive Stale Cards',
-          callback: function(t) {
-            return t.modal({ title: 'Archiving Stale Cards...', url: './sweep.html', height: 300 });
-          }
-        });
+    return [{
+      icon: { dark: SAFE_ICON, light: SAFE_ICON },
+      text: '⚙️ Declutter Settings',
+      callback: function(t) {
+        return t.popup({ title: 'Board Declutter', url: './declutter-menu.html', height: 180 });
       }
-
-      return buttons;
-    }).catch(e => { return []; });
+    }];
   }
 });
