@@ -67,17 +67,17 @@ window.TrelloPowerUp.initialize({
     }).catch(e => { return []; });
   },
 
-  // 3. INSIDE CARD (Protect toggle + health read-out)
-  // Trello allows only ONE card back section per Power-Up, so the protect
-  // control and the inactivity read-out share this one. It is not gated on
-  // hideBadges any more — that setting hides age badges, and protection has to
-  // stay reachable from the card either way. card-protect.html drops the
-  // inactivity line itself when hideBadges is on.
+  // 3. INSIDE CARD (Protect / un-protect toggle)
+  // Not gated on hideBadges — that setting hides age badges, and protection has
+  // to stay reachable from the card either way. The card's age is already shown
+  // by the Total Age detail badge just above this section, so it is not repeated
+  // here. card-protect.html calls sizeTo, so this height is only the starting
+  // point.
   'card-back-section': function(t, options) {
     return {
       title: 'Board Declutter',
       icon: SAFE_ICON,
-      content: { type: 'iframe', url: t.signUrl('./card-protect.html'), height: 108 }
+      content: { type: 'iframe', url: t.signUrl('./card-protect.html'), height: 88 }
     };
   },
 

@@ -76,25 +76,17 @@
     }
 
     .hint.error { color: var(--error); }
-
-    .age {
-      margin-top: 3px;
-      font-size: 11.5px;
-      color: var(--text-dim);
-    }
   </style>
 </head>
 <body>
   <button class="btn" id="toggle" disabled>…</button>
   <div class="hint" id="hint"></div>
-  <div class="age" id="age"></div>
 
   <script>
     var t = window.TrelloPowerUp.iframe();
 
     const toggleBtn = document.getElementById('toggle');
     const hintEl = document.getElementById('hint');
-    const ageEl = document.getElementById('age');
 
     let cardId = null;
     let isProtected = false;
@@ -104,9 +96,9 @@
       toggleBtn.classList.toggle('on', isProtected);
       toggleBtn.disabled = false;
       hintEl.className = 'hint';
-      hintEl.textContent = isProtected
-        ? 'This card is protected and will be skipped when the board is decluttered.'
-        : 'Click on protect to protect the card from decluttering.';
+      // The button itself carries the state — it is red and says UN-PROTECT —
+      // so the line under it stays put and explains what the control is for.
+      hintEl.textContent = 'Click on protect to protect the card from decluttering.';
       t.sizeTo('body');
     }
 
@@ -146,19 +138,12 @@
 
     t.render(function() {
       Promise.all([
-        t.card('id', 'dateLastActivity'),
+        t.card('id'),
         t.get('board', 'shared')
       ]).then(function([card, boardData]) {
         const data = boardData || {};
         cardId = card.id;
         isProtected = (data.protectedCards || []).indexOf(cardId) !== -1;
-
-        // Same switch that hides the age badges hides this read-out.
-        if (!data.hideBadges && card.dateLastActivity) {
-          const days = Math.floor((Date.now() - new Date(card.dateLastActivity)) / 86400000);
-          ageEl.textContent = 'Inactive for ' + days + ' day' + (days === 1 ? '' : 's') + '.';
-        }
-
         paint();
       }).catch(function(e) {
         console.error(e);
